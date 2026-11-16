@@ -7,12 +7,12 @@
   <meta name="theme-color" content="#a5b4fc" />
   <meta
     name="description"
-    content="Онлайн-калькулятор: расчёт по формуле (Переменная 1 × ставка) / 365 × дни. Дни вычисляются автоматически по дате окончания. Ставка 2,3%."
+    content="Онлайн-калькулятор: расчёт по формуле (Переменная 1 × ставка) / 365 × дни. Дни вычисляются автоматически по дате окончания. Ставки 2,1–2,6 %."
   />
   <meta property="og:title" content="Онлайн-калькулятор" />
   <meta
     property="og:description"
-    content="Расчёт по формуле с автоматическим подсчётом дней по дате окончания. Ставка 2,3%."
+    content="Расчёт по формуле с автоматическим подсчётом дней по дате окончания. Ставки 2,1 %, 2,24 %, 2,3 %, 2,5 %, 2,6 %."
   />
   <meta property="og:type" content="website" />
   <!-- Иконка для вкладки и плитки в визуальных закладках -->
@@ -349,6 +349,45 @@
       color: var(--danger);
     }
 
+    /* Строки результатов по ставкам */
+    .result__list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .result__row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+    }
+
+    .result__row + .result__row {
+      border-top: 1px solid rgba(255, 255, 255, 0.55);
+    }
+
+    .result__row:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    .result__rate {
+      font-weight: 600;
+      color: rgba(49, 46, 129, 0.7);
+      white-space: nowrap;
+    }
+
+    .result__amount {
+      font-weight: 700;
+      color: var(--success);
+      letter-spacing: -0.01em;
+      text-align: right;
+      word-break: break-word;
+    }
+
     /* ---------- Фолбэк без backdrop-filter ---------- */
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
       .calculator {
@@ -402,10 +441,10 @@
     <h1 class="calculator__title">Онлайн-калькулятор</h1>
     <p class="calculator__subtitle">
       Расчёт по формуле:
-      <span class="calculator__formula" id="formulaText">(Переменная 1 × 0.023) / 365 × Переменная 2</span>
+      <span class="calculator__formula" id="formulaText">(Переменная 1 × ставка) / 365 × дни</span>
       <span class="calculator__note">
-        Переменная 2 — количество дней от сегодняшней даты до даты окончания.
-        Ставка фиксированная — 2,3 %.
+        Дни — от сегодняшней даты до даты окончания.
+        Ставки: 2,1 %, 2,24 %, 2,3 %, 2,5 %, 2,6 % годовых.
       </span>
     </p>
 
@@ -440,6 +479,7 @@
 
     <div class="result" id="result" aria-live="polite">
       <span class="result__label" id="resultLabel">Результат</span>
+      <div class="result__list" id="resultList" hidden></div>
       <span class="result__value result__value--empty" id="resultValue">—</span>
     </div>
   </main>
@@ -455,13 +495,23 @@
       const daysHint = document.getElementById("daysHint");
       const resultBox = document.getElementById("result");
       const resultValue = document.getElementById("resultValue");
+      const resultList = document.getElementById("resultList");
       const resultLabel = document.getElementById("resultLabel");
 
       const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-      // Фиксированная ставка: 2,3 % = 2.3 / 100 = 0.023
-      const RATE = 0.023;
-      const RATE_LABEL = "2,3 %";
+      /**
+       * Фиксированные ставки (в долях единицы), по возрастанию:
+       * 2,1 % = 0.021, 2,24 % = 0.0224, 2,3 % = 0.023,
+       * 2,5 % = 0.025, 2,6 % = 0.026.
+       */
+      const RATES = [
+        { value: 0.021, label: "2,1 %" },
+        { value: 0.0224, label: "2,24 %" },
+        { value: 0.023, label: "2,3 %" },
+        { value: 0.025, label: "2,5 %" },
+        { value: 0.026, label: "2,6 %" },
+      ];
 
       /**
        * Возвращает сегодняшнюю дату, обнуляя время.
@@ -565,6 +615,9 @@
       function showError(message) {
         resultBox.classList.remove("result--active");
         resultBox.classList.add("result--error");
+        resultList.hidden = true;
+        resultList.replaceChildren();
+        resultValue.hidden = false;
         resultValue.classList.remove("result__value--empty");
         resultValue.textContent = message;
       }
@@ -574,9 +627,12 @@
        */
       function resetResult() {
         resultBox.classList.remove("result--active", "result--error");
+        resultValue.hidden = false;
         resultValue.classList.add("result__value--empty");
         resultValue.textContent = "—";
         resultLabel.textContent = "Результат";
+        resultList.hidden = true;
+        resultList.replaceChildren();
       }
 
       /**
@@ -618,8 +674,9 @@
        *
        *   Результат = (Переменная_1 × ставка) / 365 × дни
        *
-       * Ставка фиксированная:
-       *   2,3% = 2.3 / 100 = 0.023
+       * Для каждой фиксированной ставки:
+       *   2,1 % = 0.021, 2,24 % = 0.0224, 2,3 % = 0.023,
+       *   2,5 % = 0.025, 2,6 % = 0.026.
        *
        * Дни вычисляются автоматически как разница между
        * сегодняшней датой и датой окончания, которую ввёл пользователь.
@@ -660,16 +717,34 @@
         // ---------- Основная формула ----------
         const daysInYear = 365; // количество дней в году
 
-        const dailyValue = (var1 * RATE) / daysInYear; // значение за 1 день
-        const result = dailyValue * days;              // итог за выбранное количество дней
-
-        // ---------- Вывод результата ----------
+        // ---------- Вывод результата по каждой ставке ----------
         resultBox.classList.remove("result--error");
         resultBox.classList.add("result--active");
-        resultValue.classList.remove("result__value--empty");
-        resultValue.textContent = formatNumber(result);
+        resultValue.hidden = true;
+        resultList.hidden = false;
+        resultList.replaceChildren();
+
+        RATES.forEach(function (rateInfo) {
+          // (Переменная_1 × ставка) / 365 × дни
+          const result = (var1 * rateInfo.value) / daysInYear * days;
+
+          const row = document.createElement("div");
+          row.className = "result__row";
+
+          const rateLabel = document.createElement("span");
+          rateLabel.className = "result__rate";
+          rateLabel.textContent = rateInfo.label;
+
+          const amount = document.createElement("span");
+          amount.className = "result__amount";
+          amount.textContent = formatNumber(result);
+
+          row.append(rateLabel, amount);
+          resultList.append(row);
+        });
+
         resultLabel.textContent =
-          "Результат · " + RATE_LABEL + " · " + days + " " + pluralDays(days);
+          "Результат · " + days + " " + pluralDays(days);
       }
 
       // Минимальная дата окончания — завтра
